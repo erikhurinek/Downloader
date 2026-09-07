@@ -1,0 +1,37 @@
+{
+  "archive_file": "temp/archive.txt",
+  "input_file": "input.csv",
+  "output_dir": "output/",
+  "temp_dir": "temp/",
+  "download_cmd": [
+    "yt-dlp", 
+    "-o", 
+    "{output}.%(ext)s", 
+    "--embed-metadata",
+    "--download-archive", "{archive}",
+    "-x", 
+    "-f", "bestaudio", 
+    "{url}"
+  ],
+  "convert_cmd": [
+    "ffmpeg", 
+    "-hide_banner",
+    "-i", "{input}",
+    "-c:a", "libopus",
+    "-b:a", "128k",
+    "{output}"
+  ],
+  "metadata_cmd": [
+    "ffmpeg", 
+    "-nostdin", 
+    "-hide_banner",
+    "-y", 
+    "-i", "{input}",
+    "-c:a", "libopus", 
+    "-b:a", "128k",
+    "-metadata", "title={title}",
+    "-metadata", "artist={author}",
+    "{output}"
+  ],
+  "sleep": 1
+}

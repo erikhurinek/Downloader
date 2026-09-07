@@ -5,6 +5,9 @@ from typing import Any
 
 
 class Config:
+    """
+    Singleton for storing key-value configuration settings.
+    """
     _instance = None
     _config_data: dict[str, Any] | None = None
     _config_path: Path = Path(os.getcwd()) / "config.json"
@@ -25,6 +28,10 @@ class Config:
             self._config_data = json.load(f)
 
     def get(self, key: str, default: Any = None) -> Any:
+        """
+        Returns the value associated with a key.
+        If it does not exist, default or None is returned.
+        """
         self._init()
 
         if self._config_data is None:
@@ -34,6 +41,9 @@ class Config:
 
     @property
     def data(self) -> dict[str, Any]:
+        """
+        The config data as a dictionary.
+        """
         self._init()
 
         if self._config_data is None:

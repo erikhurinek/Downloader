@@ -17,6 +17,11 @@ logger = logging.getLogger(__name__)
 
 
 def find_file_by_basename(base_path: Path) -> Path:
+    """
+    Finds a file by base name, returning the path with extension.
+
+    Raises an exception of zero or multiple matches were found.
+    """
     matches = list(base_path.parent.glob(base_path.stem + ".*"))
 
     if len(matches) == 0:
@@ -27,7 +32,10 @@ def find_file_by_basename(base_path: Path) -> Path:
     return matches[0]
 
 
-def ensure_directories():
+def ensure_config_directories() -> None:
+    """
+    Ensures temp and output directories exist.
+    """
     output_dir = ROOT / Config().get("output_dir")
     output_dir.mkdir(parents=True, exist_ok=True)
     temp_dir = ROOT / Config().get("temp_dir")
@@ -35,6 +43,9 @@ def ensure_directories():
 
 
 def gen_temp_file_path(suffix: str | None = None) -> Path:
+    """
+    Generates a temporary file with an optional suffix (extension).
+    """
     suffix = suffix or ""
     temp_dir = ROOT / Config().get("temp_dir")
     temp_file = temp_dir / f"{uuid.uuid4()}{suffix}"
@@ -42,33 +53,46 @@ def gen_temp_file_path(suffix: str | None = None) -> Path:
 
 
 def format_cmd_with_config(cmd: list[str], extended_args: dict[str,str]) -> list[str]:
+    """
+    Formats a command using the current config parameters and any extended args.
+    For example `mycommand {input_file}` would become `mycommand input.csv`.
+    """
     format_args= Config().data
     format_args.update(extended_args)
     return [cmd_param.format(**format_args) for cmd_param in cmd]
 
 
 def snake_case(text: str) -> str:
+    """
+    Removes non-alphanumeric characters, and substitutes spaces with underscores.
+    """
     text = re.sub(r'[^a-zA-Z0-9\s]', '', text.lower())
     text = re.sub(r'\s+', '_', text)
     return text
 
 
-def download_file(url: str, output_path: Path):
+def download_file(url: str, output_path: Path) -> Path:
+    """
+    Downloads an audio file using the config's `download_cmd`.
+    Returns the path of the downloaded file.
+    """
     if not output_path.parent.exists():
-        raise FileNotFoundError(f"Output directory does not exist: {output_path.parent}")
-
+        raise FileNotFoundError(f"Output directory not exist: {output_path.parent}")
     if output_path.exists():
         raise FileExistsError(f"Output file already exists: {output_path}")
 
     formatted_download_cmd = format_cmd_with_config(
             config.get("download_cmd"),
             {"url": url, "output": str(output_path), "archive": config.get("archive_file")})
-    subprocess.run(formatted_download_cmd, check=True)
 
+    subprocess.run(formatted_download_cmd, check=True)
     return find_file_by_basename(output_path)
 
 
-def convert_to_opus(input_file_path: Path, output_file_path: Path):
+def convert_to_opus(input_file_path: Path, output_file_path: Path) -> None:
+    """
+    Converts an input file to OPUS using the config's `convert_cmd`.
+    """
     if input_file_path == output_file_path:
         raise ValueError("Input cannot be the same as output when converting to opus.")
     if not input_file_path.exists():
@@ -83,7 +107,10 @@ def convert_to_opus(input_file_path: Path, output_file_path: Path):
     subprocess.run(formatted_convert_cmd, check=True)
 
 
-def add_metadata(input_path: Path, output_path: Path, title: str, composer: str):
+def add_metadata(input_path: Path, output_path: Path, title: str, composer: str) -> None:
+    """
+    Adds metadata using config's `metadata_cmd`.
+    """
     if input_path == output_path:
         raise ValueError("Input cannot be the same as output when adding metadata.")
     if not input_path.exists():
@@ -105,6 +132,7 @@ def add_metadata(input_path: Path, output_path: Path, title: str, composer: str)
 
 
 def process_row(row: pd.Series) -> None:
+    """Processes a row, and therefore URL, in the CSV file."""
     url = cast(str,row["url"])
     title = cast(str,row["title"])
     author = cast(str,row["author"])
@@ -114,6 +142,7 @@ def process_row(row: pd.Series) -> None:
     logger.info(f"Processing row: URL={url}, Title={title}, Author={author}, Output={output_file_path}")
 
     try:
+        # Download the file
         temp_file_path = gen_temp_file_path()
         downloaded_file_path = download_file(url, temp_file_path)
 
@@ -131,15 +160,16 @@ def process_row(row: pd.Series) -> None:
         temp_file_path.unlink(missing_ok=True)
 
     except Exception:
-        logger.exception(f"Error processing row with URL {url}")
+        logger.exception(f"Error processing row with URL: {url}")
 
     # Sleep if configured
     if config.get("sleep", 0) > 0:
         time.sleep(config.get("sleep", 0))
 
 
-def main():
-    ensure_directories()
+def main() -> None:
+    """Main entry procedure."""
+    ensure_config_directories()
     input_file = ROOT / Config().get("input_file")
     df = pd.read_csv(input_file)
 

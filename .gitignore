@@ -1,6 +1,7 @@
-# Temp directory
+# Output directories
 temp/
 output/
+logs/
 
 # Python-generated files
 __pycache__/

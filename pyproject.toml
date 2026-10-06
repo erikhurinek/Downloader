@@ -1,5 +1,5 @@
 [project]
-name = "downloader2"
+name = "downloader"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -9,10 +9,11 @@ authors = [
 requires-python = ">=3.14"
 dependencies = [
     "pandas>=3.0.5",
+    "tqdm>=4.70.1",
 ]
 
 [project.scripts]
-downloader2 = "downloader2:main"
+downloader = "downloader:main"
 
 [build-system]
 requires = ["uv_build>=0.12.5,<0.13.0"]

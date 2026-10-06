@@ -2,12 +2,12 @@
   "archive_file": "temp/archive.txt",
   "input_file": "input.csv",
   "output_dir": "output/",
+  "log_dir": "logs/",
   "temp_dir": "temp/",
   "download_cmd": [
     "yt-dlp", 
     "-o", 
     "{output}.%(ext)s", 
-    "--embed-metadata",
     "--download-archive", "{archive}",
     "-x", 
     "-f", "bestaudio", 
@@ -27,8 +27,7 @@
     "-hide_banner",
     "-y", 
     "-i", "{input}",
-    "-c:a", "libopus", 
-    "-b:a", "128k",
+    "-c:a", "copy", 
     "-metadata", "title={title}",
     "-metadata", "artist={author}",
     "{output}"

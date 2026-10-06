@@ -1,4 +1,3 @@
-import logging
 import os
 import re
 import subprocess
@@ -8,12 +7,14 @@ from pathlib import Path
 from typing import cast
 
 import pandas as pd
+from tqdm import tqdm
 
 from src.downloader.config import Config
+from src.downloader.logger import Logger
 
 ROOT = Path(os.getcwd())
-config = Config()
-logger = logging.getLogger(__name__)
+COMMAND_TIMEOUT = 7200
+PROGRESS_BAR_NAME = "Downloading media"
 
 
 def find_file_by_basename(base_path: Path) -> Path:
@@ -36,9 +37,9 @@ def ensure_config_directories() -> None:
     """
     Ensures temp and output directories exist.
     """
-    output_dir = ROOT / Config().get("output_dir")
+    output_dir = ROOT / Config.get("output_dir")
     output_dir.mkdir(parents=True, exist_ok=True)
-    temp_dir = ROOT / Config().get("temp_dir")
+    temp_dir = ROOT / Config.get("temp_dir")
     temp_dir.mkdir(parents=True, exist_ok=True)
 
 
@@ -47,7 +48,7 @@ def gen_temp_file_path(suffix: str | None = None) -> Path:
     Generates a temporary file with an optional suffix (extension).
     """
     suffix = suffix or ""
-    temp_dir = ROOT / Config().get("temp_dir")
+    temp_dir = ROOT / Config.get("temp_dir")
     temp_file = temp_dir / f"{uuid.uuid4()}{suffix}"
     return temp_file
 
@@ -57,7 +58,7 @@ def format_cmd_with_config(cmd: list[str], extended_args: dict[str,str]) -> list
     Formats a command using the current config parameters and any extended args.
     For example `mycommand {input_file}` would become `mycommand input.csv`.
     """
-    format_args= Config().data
+    format_args = Config.data()
     format_args.update(extended_args)
     return [cmd_param.format(**format_args) for cmd_param in cmd]
 
@@ -82,10 +83,12 @@ def download_file(url: str, output_path: Path) -> Path:
         raise FileExistsError(f"Output file already exists: {output_path}")
 
     formatted_download_cmd = format_cmd_with_config(
-            config.get("download_cmd"),
-            {"url": url, "output": str(output_path), "archive": config.get("archive_file")})
+            Config.get("download_cmd"),
+            {"url": url, "output": str(output_path), "archive": Config.get("archive_file")})
 
-    subprocess.run(formatted_download_cmd, check=True)
+    result = subprocess.run(formatted_download_cmd, check=True, capture_output=True, text=True, timeout=COMMAND_TIMEOUT)
+    Logger.debug_process_result(result, label="Download")
+
     return find_file_by_basename(output_path)
 
 
@@ -101,10 +104,11 @@ def convert_to_opus(input_file_path: Path, output_file_path: Path) -> None:
         raise FileExistsError(f"Output file already exists: {output_file_path}")
 
     formatted_convert_cmd = format_cmd_with_config(
-            config.get("convert_cmd"), 
+            Config.get("convert_cmd"), 
             {"input": str(input_file_path), "output": str(output_file_path)})
 
-    subprocess.run(formatted_convert_cmd, check=True)
+    result = subprocess.run(formatted_convert_cmd, check=True, capture_output=True, text=True, timeout=COMMAND_TIMEOUT)
+    Logger.debug_process_result(result, label="Convert")
 
 
 def add_metadata(input_path: Path, output_path: Path, title: str, composer: str) -> None:
@@ -123,12 +127,16 @@ def add_metadata(input_path: Path, output_path: Path, title: str, composer: str)
         output=str(output_path),
         title=title,
         author=composer
-    ) for arg in config.get("metadata_cmd")]
+    ) for arg in Config.get("metadata_cmd")]
 
-    subprocess.run(
+    result = subprocess.run(
         formatted_metadata_command,
-        check=True
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=COMMAND_TIMEOUT
     )
+    Logger.debug_process_result(result, label="Metadata")
 
 
 def process_row(row: pd.Series) -> None:
@@ -137,9 +145,9 @@ def process_row(row: pd.Series) -> None:
     title = cast(str,row["title"])
     author = cast(str,row["author"])
     output_stem = snake_case(f"{title} {author}")
-    output_file_path = ROOT / Config().get("output_dir") / f"{output_stem}.opus"
+    output_file_path = ROOT / Config.get("output_dir") / f"{output_stem}.opus"
 
-    logger.info(f"Processing row: URL={url}, Title={title}, Author={author}, Output={output_file_path}")
+    Logger.debug(f"Processing row: URL={url}, Title={title}, Author={author}, Output={output_file_path}")
 
     try:
         # Download the file
@@ -159,23 +167,24 @@ def process_row(row: pd.Series) -> None:
         # Clean up temporary files
         temp_file_path.unlink(missing_ok=True)
 
-    except Exception:
-        logger.exception(f"Error processing row with URL: {url}")
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        Logger.error(f"Error processing row: URL={url}, Title={title}, Author={author}\n{e}")
 
     # Sleep if configured
-    if config.get("sleep", 0) > 0:
-        time.sleep(config.get("sleep", 0))
+    if Config.get("sleep", 0) > 0:
+        time.sleep(Config.get("sleep", 0))
 
 
 def main() -> None:
     """Main entry procedure."""
     ensure_config_directories()
-    input_file = ROOT / Config().get("input_file")
+    input_file = ROOT / Config.get("input_file")
     df = pd.read_csv(input_file)
 
     if df.empty:
-        logger.warning(f"No data found in input file: {input_file}")
+        Logger.info(f"No data found in input file: {input_file}")
         return
 
-    df.apply(process_row, axis=1)
+    tqdm.pandas(desc=PROGRESS_BAR_NAME)
+    df.progress_apply(process_row, axis=1)
 

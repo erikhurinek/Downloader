@@ -36,15 +36,15 @@ By default, downloaded URLs are record in an archive text file, and future repea
 If you wish to download the URL again, perform the following actions:
 
 1. Delete the contents of the temporary directory. By default, this should be called `temp/` and will contain the archive file `archive.txt`.
-2. Move or delete the contents of the output directory, `output/` by default.
+2. Move or delete the contents of the output directory. This is `output/` by default.
 
 ## Configuration
 
 The `config.json` file in the project root contains settings.
-You can alter the commands used to download, convert, and write the metadata to media.
+You can alter the commands used to download, convert, and modify media.
 
 ## Notes
 
-Excessive downloads may result in temporary blocks from the media provider.
+Excessive downloads may result in temporary blocks from media providers.
 Avoid downloading the same media in rapid succession.
 A `sleep` parameter is provided in `config.json` to wait between downloads.
